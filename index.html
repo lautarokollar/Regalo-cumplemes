@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Super Cinnamoroll Bros. - Mundo 1-1</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap');
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      background: #000;
+      font-family: 'Press Start 2P', monospace;
+      color: #fff;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    #game-container {
+      position: relative;
+      width: 800px;
+      height: 480px;
+      border: 4px solid #fff;
+      box-shadow: 0 0 20px rgba(255, 255, 255, 0.2);
+      overflow: hidden;
+      background: #5c94fc;
+    }
+
+    canvas {
+      display: block;
+      image-rendering: pixelated;
+    }
+
+    /* Pantalla de Inicio / Click para Reproducir Audio */
+    #start-overlay {
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.75);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 20;
+      cursor: pointer;
+    }
+
+    #start-overlay h1 {
+      font-size: 1rem;
+      color: #ff85a1;
+      margin-bottom: 20px;
+      text-align: center;
+      line-height: 1.6;
+    }
+
+    #start-btn {
+      background: #ff477e;
+      color: white;
+      border: 3px solid #fff;
+      padding: 12px 24px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.7rem;
+      border-radius: 8px;
+      box-shadow: 0 0 15px rgba(255, 71, 126, 0.8);
+      cursor: pointer;
+      animation: pulse 1.5s infinite;
+    }
+
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+
+    /* Modales */
+    #reward-modal, .letter-modal {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(0, 0, 0, 0.85);
+      backdrop-filter: blur(4px);
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      z-index: 10;
+      animation: fadeIn 0.4s ease forwards;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: scale(0.95); }
+      to { opacity: 1; transform: scale(1); }
+    }
+
+    .card {
+      background: #fff;
+      color: #000;
+      padding: 20px;
+      border-radius: 12px;
+      text-align: center;
+      max-width: 420px;
+      width: 90%;
+      box-shadow: 0 0 25px rgba(255, 182, 193, 0.8);
+      border: 4px solid #ff477e;
+    }
+
+    .card img {
+      width: 100%;
+      max-height: 230px;
+      object-fit: cover;
+      border-radius: 8px;
+      margin-bottom: 15px;
+      border: 3px solid #ffccd5;
+    }
+
+    .card h2 {
+      color: #ff477e;
+      margin-bottom: 12px;
+      font-size: 0.85rem;
+      line-height: 1.4;
+    }
+
+    .card p {
+      color: #333;
+      font-size: 0.65rem;
+      line-height: 1.6;
+      margin-bottom: 15px;
+    }
+
+    .close-btn {
+      background: #ff477e;
+      color: white;
+      border: none;
+      padding: 8px 16px;
+      font-family: 'Press Start 2P', monospace;
+      font-size: 0.55rem;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .controls-hint {
+      margin-top: 15px;
+      font-size: 0.6rem;
+      color: #aaa;
+      letter-spacing: 1px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Audio de fondo -->
+  <audio id="bg-music" src="cancion.mp3" loop></audio>
+
+  <div id="game-container">
+    <div id="start-overlay">
+      <h1>✨ UNA SORPRESA ESPECIAL ✨</h1>
+      <button id="start-btn">❤️ HAZ CLIC PARA JUGAR ❤️</button>
+    </div>
+
+    <canvas id="gameCanvas" width="800" height="480"></canvas>
+
+    <!-- Modal Cartas ? -->
+    <div id="letter-modal" class="letter-modal">
+      <div class="card">
+        <h2 id="letter-title">💌 ¡CARTA DE AMOR! 💌</h2>
+        <p id="letter-text">Aquí va tu mensaje romántico especial...</p>
+        <button class="close-btn" onclick="closeLetter()">CONTINUAR JUGANDO</button>
+      </div>
+    </div>
+
+    <!-- Modal Final -->
+    <div id="reward-modal">
+      <div class="card">
+        <img id="couple-photo" src="foto.jpg" onerror="this.onerror=null; this.src='foto.png';" alt="Nuestra Foto">
+        <h2>¡LLEGASTE A MI CORAZÓN! ❤️</h2>
+        <p>Gracias por ser la mejor compañera de aventuras y por iluminar mi vida con tu amor. ¡Vamos por muchos meses más! ¡Te amo muchísimo!</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="controls-hint">MOVER: ⬅️ ➡️ | SALTAR: ESPACIO / ⬆️</div>
+
+  <script>
+    const LOCAL_IMAGE_NAME = "cinnamoroll.png";
+
+    const canvas = document.getElementById('gameCanvas');
+    const ctx = canvas.getContext('2d');
+    const modal = document.getElementById('reward-modal');
+    const letterModal = document.getElementById('letter-modal');
+    const letterTitle = document.getElementById('letter-title');
+    const letterText = document.getElementById('letter-text');
+    const bgMusic = document.getElementById('bg-music');
+    const startOverlay = document.getElementById('start-overlay');
+
+    let gameStarted = false;
+
+    function startGame() {
+      if (!gameStarted) {
+        gameStarted = true;
+        startOverlay.style.display = 'none';
+        try {
+          bgMusic.play().catch(() => {});
+        } catch (e) {}
+      }
+    }
+
+    // Escuchar clic en toda la pantalla o botón
+    startOverlay.addEventListener('click', startGame);
+
+    const playerImg = new Image();
+    playerImg.src = LOCAL_IMAGE_NAME;
+    let imgLoaded = false;
+    playerImg.onload = () => { imgLoaded = true; };
+
+    const boxMessages = [
+      "¡Feliz cumplemés mi amor! 💖",
+      "¡Sos la persona más hermosa y dulce del mundo! ✨",
+      "¡Gracias por llenarme con tu amor! 💖",
+      "¡Gracias por hacerme tan feliz todos los días 🌸"
+    ];
+    let currentMessageIndex = 0;
+
+    function closeLetter() {
+      letterModal.style.display = 'none';
+    }
+
+    const GRAVITY = 0.45;
+    const WORLD_WIDTH = 2400;
+    const BLOCK_SIZE = 32;
+
+    const keys = { right: false, left: false };
+    let cameraX = 0;
+
+    const player = {
+      x: 60,
+      y: 300,
+      width: 68,
+      height: 50,
+      vx: 0,
+      vy: 0,
+      speed: 2.85,
+      jumpForce: -11,
+      grounded: false,
+      winAnimation: false,
+      score: 0
+    };
+
+    const groundY = canvas.height - 64;
+    const blocks = [];
+    const floatingEnvelopes = [];
+
+    function createGround() {
+      for (let x = 0; x < WORLD_WIDTH; x += BLOCK_SIZE) {
+        if (x >= 1100 && x <= 1164) continue;
+        blocks.push({ x: x, y: groundY, w: BLOCK_SIZE, h: BLOCK_SIZE, type: 'ground' });
+        blocks.push({ x: x, y: groundY + BLOCK_SIZE, w: BLOCK_SIZE, h: BLOCK_SIZE, type: 'ground' });
+      }
+    }
+
+    const pipes = [
+      { x: 300, y: groundY - 64, w: 64, h: 64 },
+      { x: 720, y: groundY - 80, w: 64, h: 80 },
+      { x: 1000, y: groundY - 80, w: 64, h: 80 }
+    ];
+
+    pipes.forEach(p => {
+      blocks.push({ x: p.x, y: p.y, w: p.w, h: p.h, type: 'pipe' });
+    });
+
+    const questionBlocks = [
+      { x: 200, y: groundY - 128, type: 'question', hit: false },
+      { x: 440, y: groundY - 128, type: 'brick', hit: false },
+      { x: 472, y: groundY - 128, type: 'question', hit: false },
+      { x: 504, y: groundY - 128, type: 'brick', hit: false },
+      { x: 536, y: groundY - 128, type: 'question', hit: false },
+      { x: 472, y: groundY - 224, type: 'question', hit: false }
+    ];
+
+    questionBlocks.forEach(b => {
+      blocks.push({ x: b.x, y: b.y, w: BLOCK_SIZE, h: BLOCK_SIZE, type: b.type, hit: false });
+    });
+
+    const stairStartX = 1400;
+    const stairSteps = 8;
+    for (let i = 0; i < stairSteps; i++) {
+      for (let j = 0; j <= i; j++) {
+        blocks.push({
+          x: stairStartX + i * BLOCK_SIZE,
+          y: groundY - (j + 1) * BLOCK_SIZE,
+          w: BLOCK_SIZE,
+          h: BLOCK_SIZE,
+          type: 'stair'
+        });
+      }
+    }
+
+    const flagX = 1800;
+    const castleX = 1980;
+
+    createGround();
+
+    window.addEventListener('keydown', e => {
+      if (!gameStarted) startGame();
+
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = true;
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = true;
+      if (e.code === 'Space' || e.code === 'ArrowUp' || e.code === 'KeyW') {
+        if (player.grounded && !player.winAnimation) {
+          player.vy = player.jumpForce;
+          player.grounded = false;
+        }
+      }
+    });
+
+    window.addEventListener('keyup', e => {
+      if (e.code === 'ArrowRight' || e.code === 'KeyD') keys.right = false;
+      if (e.code === 'ArrowLeft' || e.code === 'KeyA') keys.left = false;
+    });
+
+    function update() {
+      if (!gameStarted) return;
+
+      if (player.winAnimation) {
+        player.x += 1.5;
+        player.vy += GRAVITY;
+        player.y += player.vy;
+
+        if (player.y + player.height >= groundY) {
+          player.y = groundY - player.height;
+          player.vy = 0;
+        }
+
+        if (player.x >= castleX + 60) {
+          modal.style.display = 'flex';
+        }
+        return;
+      }
+
+      if (keys.right) player.vx = player.speed;
+      else if (keys.left) player.vx = -player.speed;
+      else player.vx = 0;
+
+      player.vy += GRAVITY;
+      player.x += player.vx;
+
+      if (player.x < 0) player.x = 0;
+
+      blocks.forEach(b => {
+        if (checkCollision(player, b)) {
+          if (player.vx > 0) player.x = b.x - player.width;
+          else if (player.vx < 0) player.x = b.x + b.w;
+        }
+      });
+
+      player.y += player.vy;
+      player.grounded = false;
+
+      blocks.forEach(b => {
+        if (checkCollision(player, b)) {
+          if (player.vy > 0 && player.y + player.height - player.vy <= b.y) {
+            player.y = b.y - player.height;
+            player.vy = 0;
+            player.grounded = true;
+          } else if (player.vy < 0) {
+            player.y = b.y + b.h;
+            player.vy = 0;
+
+            if (b.type === 'question' && !b.hit) {
+              b.hit = true;
+              player.score += 100;
+
+              floatingEnvelopes.push({
+                x: b.x + 6,
+                y: b.y - 10,
+                vy: -3
+              });
+
+              setTimeout(() => {
+                letterTitle.innerText = "💌 ¡MENSAJE PARA TI! 💌";
+                letterText.innerText = boxMessages[currentMessageIndex % boxMessages.length];
+                currentMessageIndex++;
+                letterModal.style.display = 'flex';
+              }, 200);
+            }
+          }
+        }
+      });
+
+      floatingEnvelopes.forEach((env, index) => {
+        env.y += env.vy;
+        env.vy += 0.1;
+        if (env.vy >= 0) floatingEnvelopes.splice(index, 1);
+      });
+
+      if (player.y > canvas.height) {
+        player.x = 60;
+        player.y = 200;
+        player.vy = 0;
+      }
+
+      if (player.x + player.width >= flagX && player.x <= flagX + 10) {
+        player.winAnimation = true;
+        player.vx = 0;
+        player.score += 5000;
+      }
+
+      cameraX = player.x - canvas.width / 3;
+      if (cameraX < 0) cameraX = 0;
+      if (cameraX > WORLD_WIDTH - canvas.width) cameraX = WORLD_WIDTH - canvas.width;
+    }
+
+    function checkCollision(r1, r2) {
+      return !(r1.x + r1.width <= r2.x ||
+               r1.x >= r2.x + r2.w ||
+               r1.y + r1.height <= r2.y ||
+               r1.y >= r2.y + r2.h);
+    }
+
+    function draw() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      ctx.save();
+      ctx.translate(-Math.floor(cameraX), 0);
+
+      drawNESBushes();
+      drawRoundClouds();
+
+      blocks.forEach(b => {
+        if (b.type === 'ground') drawGroundBlock(b.x, b.y);
+        else if (b.type === 'brick') drawBrickBlock(b.x, b.y);
+        else if (b.type === 'question') drawQuestionBlock(b.x, b.y, b.hit);
+        else if (b.type === 'pipe') drawPipe(b.x, b.y, b.w, b.h);
+        else if (b.type === 'stair') drawStairBlock(b.x, b.y);
+      });
+
+      floatingEnvelopes.forEach(env => {
+        ctx.fillStyle = "#ff85a1";
+        ctx.fillRect(env.x, env.y, 20, 14);
+        ctx.strokeStyle = "#fff";
+        ctx.strokeRect(env.x, env.y, 20, 14);
+        ctx.fillStyle = "#fff";
+        ctx.font = "10px sans-serif";
+        ctx.fillText("✉️", env.x + 2, env.y + 11);
+      });
+
+      drawFlagPole();
+      drawCastle();
+
+      if (imgLoaded) {
+        ctx.drawImage(playerImg, player.x, player.y, player.width, player.height);
+      }
+
+      ctx.restore();
+
+      drawHUD();
+    }
+
+    function drawHUD() {
+      ctx.fillStyle = "#fff";
+      ctx.font = '14px "Press Start 2P"';
+      ctx.fillText("CINNAMOROLL", 40, 35);
+      ctx.fillText(String(player.score).padStart(6, '0'), 40, 55);
+
+      ctx.fillText("WORLD", 400, 35);
+      ctx.fillText("1-1", 420, 55);
+
+      ctx.fillText("TIME", 650, 35);
+      ctx.fillText("300", 660, 55);
+    }
+
+    function drawRoundClouds() {
+      const cloudPositions = [150, 520, 920, 1350, 1750];
+      cloudPositions.forEach(cx => {
+        const cy = 90;
+
+        ctx.fillStyle = "#b0d4ff";
+        ctx.beginPath();
+        ctx.arc(cx, cy + 4, 18, 0, Math.PI * 2);
+        ctx.arc(cx + 22, cy - 6, 24, 0, Math.PI * 2);
+        ctx.arc(cx + 46, cy + 4, 18, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#ffffff";
+        ctx.beginPath();
+        ctx.arc(cx, cy, 18, 0, Math.PI * 2);
+        ctx.arc(cx + 22, cy - 10, 24, 0, Math.PI * 2);
+        ctx.arc(cx + 46, cy, 18, 0, Math.PI * 2);
+        ctx.fill();
+
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(cx + 16, cy - 6, 3, 8);
+        ctx.fillRect(cx + 26, cy - 6, 3, 8);
+      });
+    }
+
+    function drawNESBushes() {
+      const bushPositions = [120, 620, 1050, 1550];
+      bushPositions.forEach(bx => {
+        const by = groundY - 32;
+
+        ctx.fillStyle = "#000000";
+        ctx.fillRect(bx, by, 64, 32);
+
+        ctx.fillStyle = "#80d010";
+        ctx.fillRect(bx + 4, by + 4, 56, 24);
+        ctx.fillRect(bx + 12, by - 4, 40, 32);
+
+        ctx.fillStyle = "#00a800";
+        ctx.fillRect(bx + 8, by + 12, 16, 16);
+        ctx.fillRect(bx + 40, by + 12, 16, 16);
+        ctx.fillRect(bx + 24, by + 16, 16, 12);
+      });
+    }
+
+    function drawGroundBlock(x, y) {
+      ctx.fillStyle = "#d84800";
+      ctx.fillRect(x, y, 32, 32);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(x, y, 32, 2);
+      ctx.fillRect(x, y, 2, 32);
+      ctx.fillStyle = "#ffa044";
+      ctx.fillRect(x + 2, y + 2, 28, 4);
+      ctx.fillRect(x + 2, y + 2, 4, 28);
+    }
+
+    function drawBrickBlock(x, y) {
+      ctx.fillStyle = "#b84400";
+      ctx.fillRect(x, y, 32, 32);
+      ctx.fillStyle = "#000";
+      ctx.fillRect(x, y, 32, 2);
+      ctx.fillRect(x, y + 15, 32, 2);
+      ctx.fillRect(x + 15, y, 2, 15);
+      ctx.fillRect(x + 8, y + 15, 2, 17);
+    }
+
+    function drawQuestionBlock(x, y, hit) {
+      ctx.fillStyle = hit ? "#8d6e63" : "#fc9838";
+      ctx.fillRect(x, y, 32, 32);
+      ctx.fillStyle = "#000";
+      ctx.strokeRect(x, y, 32, 32);
+      if (!hit) {
+        ctx.fillStyle = "#fff";
+        ctx.font = '16px "Press Start 2P"';
+        ctx.fillText("?", x + 9, y + 23);
+      } else {
+        ctx.fillStyle = "#3e2723";
+        ctx.fillRect(x + 12, y + 12, 8, 8);
+      }
+    }
+
+    function drawStairBlock(x, y) {
+      ctx.fillStyle = "#b84400";
+      ctx.fillRect(x, y, 32, 32);
+      ctx.fillStyle = "#000";
+      ctx.strokeRect(x, y, 32, 32);
+      ctx.fillStyle = "#ffa044";
+      ctx.fillRect(x + 2, y + 2, 28, 2);
+    }
+
+    function drawPipe(x, y, w, h) {
+      ctx.fillStyle = "#00a800";
+      ctx.fillRect(x, y, w, h);
+      ctx.fillStyle = "#80d010";
+      ctx.fillRect(x + 4, y, 8, h);
+      ctx.fillStyle = "#000";
+      ctx.strokeRect(x, y, w, 24);
+      ctx.strokeRect(x + 4, y + 24, w - 8, h - 24);
+    }
+
+    function drawFlagPole() {
+      drawStairBlock(flagX - 10, groundY - 32);
+      ctx.fillStyle = "#00a800";
+      ctx.fillRect(flagX + 2, groundY - 240, 8, 208);
+      ctx.fillStyle = "#80d010";
+      ctx.beginPath();
+      ctx.arc(flagX + 6, groundY - 244, 10, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.fillStyle = "#ffffff";
+      ctx.beginPath();
+      ctx.moveTo(flagX - 40, groundY - 230);
+      ctx.lineTo(flagX + 2, groundY - 215);
+      ctx.lineTo(flagX - 40, groundY - 200);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = "#ff477e";
+      ctx.font = "10px sans-serif";
+      ctx.fillText("♥", flagX - 26, groundY - 211);
+    }
+
+    function drawCastle() {
+      const cy = groundY - 144;
+      ctx.fillStyle = "#b84400";
+      ctx.fillRect(castleX, cy, 144, 144);
+
+      for (let i = 0; i < 144; i += 32) {
+        ctx.fillRect(castleX + i, cy - 16, 16, 16);
+      }
+
+      ctx.fillStyle = "#000";
+      ctx.beginPath();
+      ctx.arc(castleX + 72, groundY - 40, 24, Math.PI, 0, false);
+      ctx.fillRect(castleX + 48, groundY - 40, 48, 40);
+      ctx.fill();
+    }
+
+    function loop() {
+      update();
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    loop();
+  </script>
+</body>
+</html>
